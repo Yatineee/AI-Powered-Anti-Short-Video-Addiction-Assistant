@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Short Video Behavior Simulator</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    .video-box { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; border-radius: 10px; }
+    .reminder { background: #ffe4e1; padding: 10px; border-radius: 5px; margin-top: 10px; }
+    button { padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <h2>📱 Short Video Simulator</h2>
+  <div id="video" class="video-box">Loading video...</div>
+  <button onclick="nextVideo()">▶️ Watch Next</button>
+  <div id="reminder" class="reminder" style="display: none;"></div>
+
+  <script>
+    const keywordsPool = [
+      ["comedy", "funny", "prank"],
+      ["education", "ai", "tutorial"],
+      ["romance", "relationship", "emotional"],
+      ["healing", "mental health", "slow vlog"],
+      ["asmr", "satisfying", "gameplay"]
+    ];
+    const emotions = [-0.7, -0.4, 0.0, 0.3, 0.6];
+
+    let sessionStart = null;
+    let currentSession = [];
+    let switchCount = 0;
+
+    function getRandomElement(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function generateFakeVideo() {
+      const keywords = getRandomElement(keywordsPool);
+      return {
+        duration: Math.floor(Math.random() * 40 + 10),  // 10-50 sec
+        emotion: getRandomElement(emotions),
+        tags: keywords,
+        title: `A video about ${keywords.join(", ")}`
+      };
+    }
+
+    function displayVideo(video) {
+      document.getElementById("video").innerHTML = `
+        <strong>🎬 Title:</strong> ${video.title}<br/>
+        <strong>⏱ Duration:</strong> ${video.duration} sec<br/>
+        <strong>🧠 Emotion Score:</strong> ${video.emotion}<br/>
+        <strong>🏷 Tags:</strong> ${video.tags.join(", ")}
+      `;
+    }
+
+    function nextVideo() {
+      if (!sessionStart) sessionStart = Date.now();
+
+      const newVideo = generateFakeVideo();
+      currentSession.push(newVideo);
+      switchCount++;
+
+      displayVideo(newVideo);
+
+      if (currentSession.length >= 5) {
+        sendSession();
+      }
+    }
+
+    function getActivePeriod() {
+      const h = new Date().getHours();
+      if (h < 6) return "late_night";
+      if (h < 12) return "morning";
+      if (h < 18) return "afternoon";
+      return "night";
+    }
+
+    function sendSession() {
+      const totalDuration = (Date.now() - sessionStart) / 60000; // mins
+      const avgDuration = currentSession.reduce((sum, v) => sum + v.duration, 0) / currentSession.length;
+      const avgEmotion = currentSession.reduce((sum, v) => sum + v.emotion, 0) / currentSession.length;
+      const allTags = [...new Set(currentSession.flatMap(v => v.tags))];
+
+      const payload = {
+        user_id: "U001",
+        session_start_time: new Date(sessionStart).toISOString(),
+        session_duration_min: totalDuration.toFixed(1),
+        active_period_label: getActivePeriod(),
+        avg_video_duration_sec: avgDuration.toFixed(1),
+        switch_frequency: (switchCount / totalDuration).toFixed(1),
+        content_emotion_score: avgEmotion.toFixed(2),
+        content_type_keywords: allTags,
+        repeated_viewing_ratio: 0.2,
+        skipped_intro_ratio: 0.4,
+        saved_to_favorites: false,
+        "3_day_total_watch_time": 450.0,
+        short_video_ratio: 0.83,
+        self_reported_goal: "I want to stay emotionally balanced"
+      };
+      fetch("http://127.0.0.1:8000/api/intervene", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        showReminder(data.advice_text, data.level);
+      })
+      .catch(err => {
+        console.error("⚠️ Request failed:", err);
+        showReminder("Oops! Server not responding.", "high");
+      });
+
+
+      // fetch("http://127.0.0.1:8000/api/intervene", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify(payload)
+      // })
+      // .then(res => res.json())
+      // .then(data => {
+      //   showReminder(data.advice_text, data.level);
+      // });
+      
+
+      // Reset session
+      sessionStart = null;
+      currentSession = [];
+      switchCount = 0;
+    }
+
+    function showReminder(text, level) {
+      const box = document.getElementById("reminder");
+      if (level === "normal") {
+        box.style.display = "none";
+      } else {
+        box.style.display = "block";
+        box.innerHTML = `<strong>💬 ${level.toUpperCase()} Reminder:</strong><br/>${text}`;
+      }
+    }
+
+    // Initial video
+    nextVideo();
+  </script>
+</body>
+</html>
+
+
+
