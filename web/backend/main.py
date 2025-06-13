@@ -33,13 +33,17 @@ SQLModel.metadata.create_all(engine)
 
 # === Should Intervene Logic ===
 def should_intervene(session: SessionData) -> bool:
+    # print("🔍 should_intervene result:", should_intervene(session))
+    # print("Incoming session:", session.dict())
+    # print("should_intervene:", should_intervene(session))
+
     return (
         session.session_duration_min > 45 and
         session.switch_frequency > 2.0 and
         session.content_emotion_score < -0.3
     )
 
-# === GPT Client Setup ===
+# === Deepseek Client Setup ===
 novita_client = OpenAI(
     base_url="https://api.novita.ai/v3/openai",
     api_key="sk_AAuPB1pBdcAHu85cbXj3w7-dE3KJAEqmuLmYlQMesDM"
@@ -63,26 +67,31 @@ def call_novita_gpt(goal: str, label: str) -> str:
 # === Main API Endpoint ===
 @app.post("/api/intervene")
 async def intervene(session: SessionData):
-    if should_intervene(session):
-        predicted_label = "anxious"  # ⚠️ Placeholder
-        advice = call_novita_gpt(session.self_reported_goal, predicted_label)
+    print("✅ Received session:", session.dict())
 
-        log = SessionLog(
-            **session.dict(),
-            predicted_label=predicted_label,
-            intervention_level="medium",
-            gpt_response=advice
-        )
-        with Session(engine) as db:
-            db.add(log)
-            db.commit()
+    intervene_flag = should_intervene(session)
+    print("🔍 should_intervene result:", intervene_flag)
 
-        return {
-            "level": "medium",
-            "advice_text": advice
-        }
-    else:
-        return {
-            "level": "normal",
-            "advice_text": "You're doing fine!"
-        }
+    predicted_label = "anxious" if intervene_flag else "normal"
+    advice = call_novita_gpt(session.self_reported_goal, predicted_label) if intervene_flag else "You're doing fine!"
+
+    session_dict = session.dict()
+    session_dict["content_type_keywords"] = ",".join(session.content_type_keywords)
+
+    log = SessionLog(
+        **session_dict,
+        predicted_label=predicted_label,
+        intervention_level="medium" if intervene_flag else "normal",
+        gpt_response=advice
+    )
+
+    with Session(engine) as db:
+        db.add(log)
+        db.commit()
+        print("✅ DB commit complete")
+
+    return {
+        "level": "medium" if intervene_flag else "normal",
+        "advice_text": advice
+    }
+
