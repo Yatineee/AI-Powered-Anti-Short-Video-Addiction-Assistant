@@ -1,0 +1,96 @@
+# Import libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import joblib
+import time
+
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import accuracy_score, classification_report, ConfusionMatrixDisplay
+from xgboost import XGBClassifier
+
+# Load dataset
+df = pd.read_csv("/content/drive/MyDrive/AI-Powered-Anti-Short-Video-Addiction-Assistant/short_video_behavior_dataset.csv")
+
+# Encode target label
+le = LabelEncoder()
+df['psych_state_label_encoded'] = le.fit_transform(df['psych_state_label'])
+
+# Clean & extract features
+df['content_type_keywords'] = df['content_type_keywords'].apply(lambda x: ' '.join(eval(x)) if isinstance(x, str) else '')
+X = df.drop(columns=['user_id', 'psych_state_label', 'self_reported_goal', 'psych_state_label_encoded'])
+y = df['psych_state_label_encoded']
+
+# Separate text and other features
+text_col = 'content_type_keywords'
+text_data = X[text_col]
+X = X.drop(columns=[text_col])
+numeric_cols = X.select_dtypes(include=['float64', 'int64']).columns.tolist()
+categorical_cols = X.select_dtypes(include=['bool', 'object']).columns.tolist()
+
+# TF-IDF vectorizer for text
+tfidf = TfidfVectorizer(max_features=50)
+X_tfidf = pd.DataFrame(tfidf.fit_transform(text_data).toarray(), columns=tfidf.get_feature_names_out())
+
+# One-hot encoding for categorical
+X_cat = pd.get_dummies(X[categorical_cols], drop_first=True)
+
+# Scale numeric features
+scaler = StandardScaler()
+X_num = pd.DataFrame(scaler.fit_transform(X[numeric_cols]), columns=numeric_cols)
+
+# Combine all features
+X_final = pd.concat([X_num.reset_index(drop=True), X_cat.reset_index(drop=True), X_tfidf.reset_index(drop=True)], axis=1)
+
+# Split train/test
+X_train, X_test, y_train, y_test = train_test_split(X_final, y, test_size=0.2, stratify=y, random_state=42)
+
+# Grid Search for XGBoost
+param_grid = {
+    'n_estimators': [100, 200],
+    'max_depth': [3, 5, 7],
+    'learning_rate': [0.01, 0.1, 0.2],
+    'subsample': [0.8, 1.0],
+    'colsample_bytree': [0.8, 1.0]
+}
+
+xgb = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42)
+
+grid_search = GridSearchCV(estimator=xgb,
+                           param_grid=param_grid,
+                           scoring='accuracy',
+                           cv=3,
+                           verbose=1,
+                           n_jobs=-1)
+
+start_time = time.time()
+grid_search.fit(X_train, y_train)
+end_time = time.time()
+
+print("✅ Best Parameters:", grid_search.best_params_)
+print("🎯 Best Accuracy Score (CV):", grid_search.best_score_)
+print("⏱️ Time Taken: {:.2f} sec".format(end_time - start_time))
+
+# Best model
+best_model = grid_search.best_estimator_
+
+# Evaluate on test set
+y_pred = best_model.predict(X_test)
+print("\n📊 Classification Report:\n", classification_report(y_test, y_pred, target_names=le.classes_))
+
+# Confusion Matrix
+ConfusionMatrixDisplay.from_predictions(y_test, y_pred, display_labels=le.classes_, cmap='Blues')
+plt.title("Best XGBoost Confusion Matrix")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# Save everything
+joblib.dump(best_model, 'xgboost_best_model.pkl')
+joblib.dump(le, 'label_encoder.pkl')
+joblib.dump(tfidf, 'tfidf_vectorizer.pkl')
+joblib.dump(scaler, 'scaler.pkl')
+print("✅ Model and preprocessors saved!")
