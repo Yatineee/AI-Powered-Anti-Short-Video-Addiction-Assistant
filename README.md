@@ -2,7 +2,7 @@
 It's an AI-powered behavioral assistant built to detect and mitigate unconscious short-video addiction. It leverages machine learning and multi-agent systems, developed within the Trae IDE, to classify user behavior, recognize digital overconsumption patterns, and trigger personalized, empathetic interventions.
 
 # Backend 
-< FastAPI Python >
+< FastAPI Python3.8 >
 ### start command:
 uvicorn main:app --reload
 
@@ -10,6 +10,12 @@ uvicorn main:app --reload
 < Node.js >
 ### start command:
 node server.js
+
+# AI API 
+< FastAPI Python3.12>
+### start command:
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8001
 
 ## 🧠 Real-Time Intervention Flow
 
