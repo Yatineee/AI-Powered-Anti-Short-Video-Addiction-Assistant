@@ -1,21 +1,102 @@
-<!-- Video stream simulator -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Short Video Behavior Simulator</title>
+  <meta charset="UTF-8" />
+  <title>Short Video Behavior Simulator + AI Chatbox</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-    .video-box { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; border-radius: 10px; }
-    .reminder { background: #ffe4e1; padding: 10px; border-radius: 5px; margin-top: 10px; }
-    button { padding: 10px 20px; }
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      display: flex;
+      height: 100vh;
+    }
+    .left, .right {
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .left {
+      flex: 2;
+      background: #f9f9f9;
+    }
+    .right {
+      flex: 1;
+      background: #fffdf7;
+      border-left: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+    }
+    .video-box {
+      border: 1px solid #ccc;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      background: white;
+    }
+    button {
+      padding: 10px 20px;
+      margin-top: 10px;
+    }
+    .chatbox {
+      flex-grow: 1;
+      padding: 10px;
+      border-radius: 10px;
+      overflow-y: auto;
+      font-size: 15px;
+    }
+    .chat-msg {
+      background: #e0f7fa;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      display: flex;
+      align-items: flex-start;
+    }
+    .chat-msg img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    .settings {
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+    label {
+      font-weight: bold;
+    }
+    select {
+      margin: 5px 0 15px 0;
+      width: 100%;
+      padding: 6px;
+    }
   </style>
 </head>
 <body>
-  <h2>📱 Short Video Simulator</h2>
-  <div id="video" class="video-box">Loading video...</div>
-  <button onclick="nextVideo()">▶️ Watch Next</button>
-  <div id="reminder" class="reminder" style="display: none;"></div>
+  <div class="left">
+    <h2>📱 Short Video Simulator</h2>
+    <div id="video" class="video-box">Loading video...</div>
+    <button onclick="nextVideo()">▶️ Watch Next</button>
+  </div>
+
+  <div class="right">
+    <h3>🧠 DeepSeek Chatbox</h3>
+    <div id="chatbox" class="chatbox"></div>
+    <div class="settings">
+      <label for="goal">🎯 Your Goal:</label>
+      <select id="goal">
+        <option>I want to stay emotionally balanced</option>
+        <option>I want to sleep earlier</option>
+        <option>I want to stop procrastinating</option>
+      </select>
+      <div class="settings">
+        <label for="tone">😎 Describe the tone you want the AI to use:</label>
+      </br>
+        <textarea id="tone" placeholder="e.g. Like my best friend Lily, gentle and humorous with emojis..."></textarea>
+      </div>
+
+
+    </div>
+  </div>
 
   <script>
     const keywordsPool = [
@@ -38,7 +119,7 @@
     function generateFakeVideo() {
       const keywords = getRandomElement(keywordsPool);
       return {
-        duration: Math.floor(Math.random() * 40 + 10),  // 10-50 sec
+        duration: Math.floor(Math.random() * 40 + 10),
         emotion: getRandomElement(emotions),
         tags: keywords,
         title: `A video about ${keywords.join(", ")}`
@@ -56,13 +137,10 @@
 
     function nextVideo() {
       if (!sessionStart) sessionStart = Date.now();
-
       const newVideo = generateFakeVideo();
       currentSession.push(newVideo);
       switchCount++;
-
       displayVideo(newVideo);
-
       if (currentSession.length >= 5) {
         sendSession();
       }
@@ -77,15 +155,16 @@
     }
 
     function sendSession() {
-      const totalDuration = (Date.now() - sessionStart) / 60000; // mins
+      const totalDuration = (Date.now() - sessionStart) / 60000;
       const avgDuration = currentSession.reduce((sum, v) => sum + v.duration, 0) / currentSession.length;
       const avgEmotion = currentSession.reduce((sum, v) => sum + v.emotion, 0) / currentSession.length;
       const allTags = [...new Set(currentSession.flatMap(v => v.tags))];
 
+
       const payload = {
         user_id: "U001",
         session_start_time: new Date(sessionStart).toISOString(),
-        session_duration_min: totalDuration.toFixed(1),
+        session_duration_min: Number(totalDuration.toFixed(1)),
         active_period_label: getActivePeriod(),
         avg_video_duration_sec: avgDuration.toFixed(1),
         switch_frequency: (switchCount / totalDuration).toFixed(1),
@@ -94,10 +173,12 @@
         repeated_viewing_ratio: 0.2,
         skipped_intro_ratio: 0.4,
         saved_to_favorites: false,
-        "3_day_total_watch_time": 450.0,
         short_video_ratio: 0.83,
-        self_reported_goal: "I want to stay emotionally balanced"
+        self_reported_goal: document.getElementById("goal").value,
+        ai_tone_description: document.getElementById("tone").value
+        // ai_tone: document.getElementById("tone").value  // ⬅️ 可传到后端用于语气调控
       };
+
       fetch("http://127.0.0.1:8000/api/intervene", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,39 +186,28 @@
       })
       .then(res => res.json())
       .then(data => {
-        showReminder(data.advice_text, data.level);
+        addToChat(data.advice_text, data.level);
       })
       .catch(err => {
         console.error("⚠️ Request failed:", err);
-        showReminder("Oops! Server not responding.", "high");
+        addToChat("Oops! Server not responding.", "high");
       });
 
-
-      // fetch("http://127.0.0.1:8000/api/intervene", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(payload)
-      // })
-      // .then(res => res.json())
-      // .then(data => {
-      //   showReminder(data.advice_text, data.level);
-      // });
-      
-
-      // Reset session
       sessionStart = null;
       currentSession = [];
       switchCount = 0;
     }
 
-    function showReminder(text, level) {
-      const box = document.getElementById("reminder");
-      if (level === "normal") {
-        box.style.display = "none";
-      } else {
-        box.style.display = "block";
-        box.innerHTML = `<strong>💬 ${level.toUpperCase()} Reminder:</strong><br/>${text}`;
-      }
+    function addToChat(text, level) {
+      const chatbox = document.getElementById("chatbox");
+      const msg = document.createElement("div");
+      msg.className = "chat-msg";
+      msg.innerHTML = `
+        <img src="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${level}" />
+        <div><strong>🤖 (${level}):</strong><br/>${text}</div>
+      `;
+      chatbox.appendChild(msg);
+      chatbox.scrollTop = chatbox.scrollHeight;
     }
 
     // Initial video
@@ -145,6 +215,3 @@
   </script>
 </body>
 </html>
-
-
-
