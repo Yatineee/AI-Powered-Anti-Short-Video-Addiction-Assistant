@@ -26,6 +26,8 @@ class SessionData(BaseModel):
     _3_day_total_watch_time: float
     short_video_ratio: float
     self_reported_goal: str
+    ai_tone_description: str  # 用户手写的语气偏好描述
+
 
 # === SQLite Setup ===
 engine = create_engine("sqlite:///./sessions.db")
@@ -49,20 +51,39 @@ novita_client = OpenAI(
     api_key="sk_AAuPB1pBdcAHu85cbXj3w7-dE3KJAEqmuLmYlQMesDM"
 )
 
-def call_novita_gpt(goal: str, label: str) -> str:
+def call_novita_gpt(goal: str, label: str, tone_desc: str) -> str:
     prompt = (
-        f"The user currently feels '{label}' and has the goal: '{goal}'. "
-        "Please generate a warm, comforting message to guide them positively."
+        f"The user currently feels '{label}' and their self-set goal is: '{goal}'.\n"
+        f"They hope you respond in the following style: \"{tone_desc}\".\n"
+        "Please provide a one-paragraph piece of advice in this tone that is supportive and emotionally appropriate."
     )
+
     chat_completion_res = novita_client.chat.completions.create(
         model="deepseek/deepseek-v3-0324",
         messages=[
-            {"role": "system", "content": "You are an empathetic, friendly assistant."},
+            {"role": "system", "content": "You are a wellness AI that adapts fully to the user's preferred tone."},
             {"role": "user", "content": prompt}
         ],
         stream=False
     )
+
     return chat_completion_res.choices[0].message.content
+
+
+# def call_novita_gpt(goal: str, label: str) -> str:
+#     prompt = (
+#         f"The user currently feels '{label}' and has the goal: '{goal}'. "
+#         "Please generate a warm, comforting message to guide them positively."
+#     )
+#     chat_completion_res = novita_client.chat.completions.create(
+#         model="deepseek/deepseek-v3-0324",
+#         messages=[
+#             {"role": "system", "content": "You are an empathetic, friendly assistant."},
+#             {"role": "user", "content": prompt}
+#         ],
+#         stream=False
+#     )
+#     return chat_completion_res.choices[0].message.content
 
 # === Main API Endpoint ===
 @app.post("/api/intervene")
@@ -73,7 +94,13 @@ async def intervene(session: SessionData):
     print("🔍 should_intervene result:", intervene_flag)
 
     predicted_label = "anxious" if intervene_flag else "normal"
-    advice = call_novita_gpt(session.self_reported_goal, predicted_label) if intervene_flag else "You're doing fine!"
+
+    # ✅ 使用自定义语气调用 GPT
+    advice = (
+        call_novita_gpt(session.self_reported_goal, predicted_label, session.ai_tone_description)
+        if intervene_flag
+        else "You're doing fine!"
+    )
 
     session_dict = session.dict()
     session_dict["content_type_keywords"] = ",".join(session.content_type_keywords)
@@ -94,4 +121,6 @@ async def intervene(session: SessionData):
         "level": "medium" if intervene_flag else "normal",
         "advice_text": advice
     }
+
+
 
