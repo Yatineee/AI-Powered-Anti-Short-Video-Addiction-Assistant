@@ -1,25 +1,25 @@
 # AI-Powered-Anti-Short-Video-Addiction-Assistant
 It's an AI-powered behavioral assistant built to detect and mitigate unconscious short-video addiction. It leverages machine learning and multi-agent systems, developed within the Trae IDE, to classify user behavior, recognize digital overconsumption patterns, and trigger personalized, empathetic interventions.
 
-## Steps To Run This Project
-# Step 1:
+# Steps To Run This Project
+## Step 1:
 Download or Clone this Git Repo
-# Step 2:
+## Step 2:
 Open the Repo in Terminal or Editor
-# Step 3:
-cd AI_Final_API
-pip install -r requirements.txt
+## Step 3:
+cd AI_Final_API <br>
+pip install -r requirements.txt <br>
 uvicorn main:app --host 0.0.0.0 --port 8001
-# Step 4:
-cd ..
-cd web
-cd backend
-pip install -r requirements.txt
+## Step 4:
+cd .. <br>
+cd web <br>
+cd backend <br>
+pip install -r requirements.txt <br>
 uvicorn main:app --host 0.0.0.0
-# Step 5:
-cd ..
-cd frontend
-pip install -r requirements.txt
+## Step 5:
+cd .. <br>
+cd frontend <br>
+pip install -r requirements.txt <br>
 node server.js
 
 # Backend 
